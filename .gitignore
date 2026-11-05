@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+env/
+venv/
+
+# Secrets & Environment
+.env
+*.env
+
+# SQLite Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
