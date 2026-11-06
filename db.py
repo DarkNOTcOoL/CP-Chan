@@ -190,6 +190,74 @@ async def get_leaderboard(limit: int = 15) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# Daily leaderboard
+# ---------------------------------------------------------------------------
+
+async def get_daily_leaderboard(limit: int = 10) -> list[dict[str, Any]]:
+    """
+    Return top ``limit`` users by **points earned in the last 24 hours**.
+
+    Sort order
+    ----------
+    1. ``daily_points`` DESC   (primary)
+    2. ``daily_rating_sum`` DESC  (tie-breaker — sum of CF ratings solved today)
+
+    Each row contains
+    -----------------
+    discord_id, cf_handle, daily_points, daily_solved, daily_rating_sum,
+    top_problem_key (highest-rated problem today), top_problem_rating.
+
+    Implementation note on ``solved_at`` comparison
+    ------------------------------------------------
+    Timestamps are stored as ISO-8601 strings with a '+00:00' suffix
+    (e.g. '2026-11-05T17:04:21+00:00').  SQLite's ``datetime()`` does not
+    parse timezone offsets in input strings, so we normalise via
+    ``REPLACE(SUBSTR(solved_at,1,19),'T',' ')`` before comparing with
+    ``datetime('now','-24 hours')``.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT
+                u.discord_id,
+                s.cf_handle,
+                SUM(s.points_awarded)         AS daily_points,
+                COUNT(s.id)                   AS daily_solved,
+                SUM(COALESCE(s.rating, 0))    AS daily_rating_sum,
+                (
+                    SELECT s2.problem_key
+                    FROM   solved_problems s2
+                    WHERE  s2.cf_handle = s.cf_handle
+                      AND  REPLACE(SUBSTR(s2.solved_at, 1, 19), 'T', ' ')
+                              >= datetime('now', '-24 hours')
+                    ORDER BY COALESCE(s2.rating, 0) DESC
+                    LIMIT 1
+                ) AS top_problem_key,
+                (
+                    SELECT s2.rating
+                    FROM   solved_problems s2
+                    WHERE  s2.cf_handle = s.cf_handle
+                      AND  REPLACE(SUBSTR(s2.solved_at, 1, 19), 'T', ' ')
+                              >= datetime('now', '-24 hours')
+                    ORDER BY COALESCE(s2.rating, 0) DESC
+                    LIMIT 1
+                ) AS top_problem_rating
+            FROM  solved_problems s
+            JOIN  users u ON u.cf_handle = s.cf_handle
+            WHERE REPLACE(SUBSTR(s.solved_at, 1, 19), 'T', ' ')
+                      >= datetime('now', '-24 hours')
+            GROUP BY s.cf_handle
+            ORDER BY daily_points DESC, daily_rating_sum DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
 # User stats
 # ---------------------------------------------------------------------------
 

@@ -55,6 +55,7 @@ COGS = [
     "cogs.leaderboard",
     "cogs.stats",
     "cogs.tracker",
+    "cogs.daily",
 ]
 
 
