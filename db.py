@@ -83,8 +83,19 @@ def _get_turso() -> "libsql_client.Client":
     """Return the shared Turso client, creating it on first call."""
     global _turso_client
     if _turso_client is None:
+        # Convert libsql:// to https://
+        # Turso's WebSocket gateway frequently returns HTTP 400 on initial handshake
+        # in serverless/container environments like Render.
+        # HTTPS uses standard HTTP pipeline/batch requests which are 100% reliable.
+        url = TURSO_URL
+        if url.startswith("libsql://"):
+            url = "https://" + url[len("libsql://"):]
+        elif url.startswith("wss://"):
+            url = "https://" + url[len("wss://"):]
+        url = url.rstrip("/")
+
         _turso_client = libsql_client.create_client(
-            url=TURSO_URL,
+            url=url,
             auth_token=TURSO_TOKEN,
         )
     return _turso_client
