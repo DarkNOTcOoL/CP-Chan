@@ -22,7 +22,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 import cf_api
-from db import init_db
+from db import init_db, close_db
 
 # ---------------------------------------------------------------------------
 # Environment
@@ -128,6 +128,7 @@ class CFBot(commands.Bot):
     async def close(self) -> None:
         if self.web_runner:
             await self.web_runner.cleanup()
+        await close_db()
         await cf_api.close_session()
         await super().close()
 
